@@ -1,5 +1,5 @@
 # google-analytics-dataframes
-pandas dataframe wrapper for the Google Analytics API.
+pandas dataframe wrapper for the Google Analytics API, with a few other functions for running multiple related queries.
 
 Requires an OAuth 2.0 client auth secrets file, which is expected to be named csec.json and placed in the execution directory, i.e., ```path.dirname(__file__)```. About setting up access through OAuth 2.0:  
 https://developers.google.com/api-client-library/python/start/get_started  
