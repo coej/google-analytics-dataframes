@@ -14,6 +14,7 @@ setup(name='google_analytics_dataframes',
           'oauth2client',
           'google-api-python-client',
           'future'
+          #'python-gflags' (python2)
       ],
       # dependency_links=['http://github.com/user/repo/tarball/master#egg=package-1.0']
       # for stuff not on pypi
