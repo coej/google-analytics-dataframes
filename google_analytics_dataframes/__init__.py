@@ -301,3 +301,32 @@ def query_comparison(query_dict_dict, context,
         outdf.columns = ['{}: {}'.format(a, b)
                          for (a, b) in outdf.columns] 
     return outdf
+
+
+def segments_by_daterange(view, segments_dict, date_range_set, **ga_query_kwargs):
+    '''
+    create a table of values of a single metric, with 
+    segments in columns and date ranges in rows.
+    
+    Usage example:
+    
+    view = some_google_analytics_view_id
+    months = [(list of date range tuples)]
+    segments_dict = {'USA': 'sessions::condition::ga:country==United States',
+                     'Other': 'sessions::condition::ga:country!=United States'}
+
+    df = row_result_collection(view, segments_dict, date_range_set=months, 
+                               metrics='ga:sessions') # defaults to ga:pageviews
+    '''
+    
+    def row_results(view, segments_dict, date_range, **ga_query_kwargs):
+        d = date_range
+        month_label = date_range  # str(date_range[0][:7]) --> short month string
+
+        row_cells = {k: ga_context(view, d).get_one(segment=v, **ga_query_kwargs) 
+                     for k, v in segments_dict.items()}    
+        df = pd.DataFrame(row_cells, index=[month_label])
+        return df
+    
+    seg_rows = [row_results(view, segments_dict, dr, **ga_query_kwargs) for dr in date_range_set]
+    return pd.concat(seg_rows)
