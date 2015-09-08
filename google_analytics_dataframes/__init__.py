@@ -80,7 +80,10 @@ def results_wrapper(data,
 
     if print_notes:
         query = data['id']
-        print(query)
+        sampling_level = data['query'].get('samplingLevel')
+        if sampling_level == 'HIGHER_PRECISION':
+            sampling_level = 'h.p.'
+        print(query, sampling_level)
 
     col_heads = [ga_clean(c.get('name')) for c in data['columnHeaders']]
     data_rows = data.get('rows')
@@ -131,7 +134,7 @@ class ga_context:
                     filters='ga:pagePath=@site.com/folder,' #default=None
                             'ga:pagePath=@site.com/etc',
                     dimensions='ga:pageTitle',              #default=None
-                    samplingLevel='HIGHER_PRECISION',
+                    samplingLevel='HIGHER_PRECISION',       # default = HIGHER_PRECISION
                     )
     '''
     # Default kwargs in a context object are set as each query is made, which 
@@ -151,38 +154,45 @@ class ga_context:
         self.end_date = end_date
         self.service = initialize_service()
         self.label = label
-        self.default_query = dict(metrics='ga:pageviews',
-                                  filters=None,  
-                                  dimensions=None,
-                                  sort='-ga:pageviews',
-                                  max_results=1000,
-                                  samplingLevel='HIGHER_PRECISION')
 
-    def update_default_query(self, **update_items):
-        self.default_query.update(update_items)
 
     def description(self):
         return (u'{l} ({s} to {e})'.format(l=self.label, 
                                            s=self.start_date, 
                                            e=self.end_date))
 
+
     def get(self, raw=False, show_heading=False, **kwargs):
-        kw_default = self.default_query
-        kw_default.update(kwargs)
-        get_obj = self.service.data().ga().get(
-            ids=self.view_id, 
-            start_date=self.start_date, 
-            end_date=self.end_date, 
-            #metrics='ga:pageviews',
-            #sort='-ga:pageviews',
-            #filters=filters,
-            #dimensions=dimensions,
-            #samplingLevel='HIGHER_PRECISION',
-            **kw_default
-            )
+        # default values, to be overriden by kwargs where needed
+        query = dict(ids=self.view_id, 
+                     start_date=self.start_date, 
+                     end_date=self.end_date,
+                     metrics='ga:pageviews',
+                     filters=None, 
+                     sort='-ga:pageviews',
+                     dimensions=None,
+                     max_results=1000,
+                     samplingLevel='HIGHER_PRECISION',
+                    )
+        
+        # Setting up sensible defaults for fast querying:
+
+        # default to sorting by descending pageviews, unless pageviews
+        # aren't among the metrics requested
+        if 'metrics' not in kwargs: # defaulting to pageviews metric
+            pass
+        else:
+            # default to descending sort by the first metric listed
+            mets = kwargs['metrics'].split(',')
+            query['sort'] = '-%s' % mets[0]
+
+        query.update(kwargs)
+        get_obj = self.service.data().ga().get(**query)
+
         if self.label:
             print(self.description())
         result = get_obj.execute()
+
         if raw:
             return result
         if show_heading:
@@ -197,6 +207,7 @@ class ga_context:
         returns a scalar instead of a dataframe, and ensures that only one 
         value was returned by the API.
         '''
+        kwargs['sort']=None
         df = self.get(**kwargs)
         if df is None:
             print('(no results)')
