@@ -141,7 +141,10 @@ class ga_context:
     # can produce unexpected results - that functionality should be removed.
     # (but for safety the full query URL is printed, so default values can be read off.)
 
-    def __init__(self, view_id, date_range=None, start_date=None, end_date=None, label=None):
+    def __init__(self, view_id, date_range=None, start_date=None, end_date=None, label=None, **kwargs):
+
+        self.query_defaults = kwargs
+
         if date_range:
             start_date = date_range[0]
             end_date = date_range[1]
@@ -155,15 +158,14 @@ class ga_context:
         self.service = initialize_service()
         self.label = label
 
-
     def description(self):
         return (u'{l} ({s} to {e})'.format(l=self.label, 
                                            s=self.start_date, 
                                            e=self.end_date))
 
-
     def get(self, raw=False, show_heading=False, **kwargs):
-        # default values, to be overriden by kwargs where needed
+
+        # overall defaults for all ga_context instances
         query = dict(ids=self.view_id, 
                      start_date=self.start_date, 
                      end_date=self.end_date,
@@ -174,19 +176,22 @@ class ga_context:
                      max_results=1000,
                      samplingLevel='HIGHER_PRECISION',
                     )
-        
-        # Setting up sensible defaults for fast querying:
+
+        # what we specified when creating the ga_context instance
+        query.update(self.query_defaults)
+
+        # what we specified in this particular get() call (doesn't affect next call)
+        query.update(kwargs)
 
         # default to sorting by descending pageviews, unless pageviews
-        # aren't among the metrics requested
-        if 'metrics' not in kwargs: # defaulting to pageviews metric
+        # aren't among the metrics requested, in which case the sort causes an API error
+        if 'metrics' not in query: # defaulting to pageviews metric
             pass
         else:
             # default to descending sort by the first metric listed
-            mets = kwargs['metrics'].split(',')
+            mets = query['metrics'].split(',')
             query['sort'] = '-%s' % mets[0]
 
-        query.update(kwargs)
         get_obj = self.service.data().ga().get(**query)
 
         if self.label:
@@ -217,7 +222,6 @@ class ga_context:
         else:
             raise ValueError(("result should contain just one value\n\n",
                               str(df)))
-
 
 
 
@@ -330,3 +334,22 @@ def segments_by_daterange(view, segments_dict, date_range_set, **ga_query_kwargs
     
     seg_rows = [row_results(view, segments_dict, dr, **ga_query_kwargs) for dr in date_range_set]
     return pd.concat(seg_rows)
+
+
+def find_new_pages(view_id, new_range, comparison_range, **kwargs):
+    
+    # kwargs should be able to handle all params for both ga_context and get()
+    old_paths = ga_context(view_id, date_range=comparison_range, **kwargs) \
+                .get() \
+                ['pagePath']
+
+    current_pages = ga_context(view_id, date_range=new_range, **kwargs) \
+                    .get() \
+                    .set_index('pagePath')
+
+    is_new_path = [i not in list(old_paths) for i in current_pages.index]
+
+    new_pages = current_pages[is_new_path]    
+    
+    return new_pages
+
